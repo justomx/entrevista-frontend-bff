@@ -1,7 +1,7 @@
 {
-  "name": "@justomx/project-name",
+  "name": "@justomx/entrevista-frontend-bff",
   "private": true,
-  "description": "Write a simple description",
+  "description": "Bienvenido",
   "author": "Jüsto",
   "version": "0.1.0-SNAPSHOT",
   "main": "dist/bin/www",

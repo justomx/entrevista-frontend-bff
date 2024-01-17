@@ -9,6 +9,7 @@ import notFoundMiddleware from './middlewares/not-found'
 /** Routes */
 import healthRouter from './routes/health'
 import infoRouter from './routes/info'
+import { getOrders } from '../../app/orders'
 
 interface Params {
   contextPath: string
@@ -32,6 +33,11 @@ export async function createExpressServer({ contextPath }: Params): Promise<Appl
   const app = express.Router()
   // Register core endpoint and resources
   // e.g. app.use('/users', userRouter)
+  app.get('/order', (req, res) => {
+    getOrders(req, res)
+      .then(() => null)
+      .catch(() => res.status(500))
+  })
 
   server.use(contextPath, app)
 
