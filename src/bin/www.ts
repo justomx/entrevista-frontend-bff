@@ -9,6 +9,7 @@ const { port, environment: env, contextPath } = appConfig.server
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
 ;(async () => {
   const express = await createExpressServer({ contextPath })
+
   const httpServer = http.createServer(express)
   httpServer.listen(port)
   httpServer.on('error', onError)
