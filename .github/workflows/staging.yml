@@ -1,0 +1,130 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [main, master, truck]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REPO_NAME: ${{ github.event.repository.name }}
+
+jobs:
+  build-staging:
+    name: build-staging
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # Setup AWS CLI
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.STG_AWS_KEY }}
+          aws-secret-access-key: ${{ secrets.STG_AWS_SECRET }}
+          aws-region: ${{ vars.STG_AWS_REGION }}
+
+      # Configure docker to use aws credentials
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # build image
+      - name: Build image ${{ env.REPO_NAME }}
+        uses: docker/build-push-action@v4
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            "${{ env.ECR_REGISTRY }}/microservices:${{ env.REPO_NAME }}-${{ github.sha }}"
+            "${{ env.ECR_REGISTRY }}/microservices:latest"
+          # Uncomment lines below to add your own build args for your Dockerfile
+          build-args: |
+            "NODE_AUTH_TOKEN=${{ secrets.JUSTO_REGISTRY_TOKEN }}"
+          #   "VAR_ENV=${{ vars.VAR_ENV }}"
+          #   "SECRET_ENV=${{ secrets.SECRET_ENV }}"
+  # Deployment
+  staging-deploy:
+    name: deploy-staging
+    needs: ['build-staging']
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # Setup AWS CLI
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.STG_AWS_KEY }}
+          aws-secret-access-key: ${{ secrets.STG_AWS_SECRET }}
+          aws-region: ${{ vars.STG_AWS_REGION }}
+
+      # Configure docker to use aws credentials
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # Deploy to kubernetes
+      - name: Deploy ${{ env.REPO_NAME }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          aws eks update-kubeconfig --name ${{ vars.STG_AWS_CLUSTER_NAME }}
+
+          echo "[-] Add justomx helm-charts repository"
+          helm repo add justomx ${{ vars.HELM_CHARTS_URL }}
+          helm repo update
+          echo "[-] Install or upgrade ${{ env.REPO_NAME }} microservice"
+          helm upgrade --install ${{ env.REPO_NAME }} justomx/nodejs \
+          --values helm/values.staging.yaml \
+          --set image.repository=${{ env.ECR_REGISTRY }}/microservices \
+          --set image.tag=${{ env.REPO_NAME }}-${{ github.sha }} \
+          --namespace ${{ vars.MS_NAMESPACE }}
+
+  # build production image
+  build-production:
+    name: build-production
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Setup AWS CLI
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.PROD_AWS_KEY }}
+          aws-secret-access-key: ${{ secrets.PROD_AWS_SECRET }}
+          aws-region: ${{ vars.PROD_AWS_REGION }}
+
+      # Configure docker to use aws credentials
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # build image
+      - name: Build image ${{ env.REPO_NAME }}
+        uses: docker/build-push-action@v5
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            "${{ env.ECR_REGISTRY }}/microservices:${{ env.REPO_NAME }}-${{ github.sha }}"
+          # Uncomment lines below to add your own build args for your Dockerfile
+          build-args: |
+            "NODE_AUTH_TOKEN=${{ secrets.JUSTO_REGISTRY_TOKEN }}"
+          #   "VAR_ENV=${{ vars.VAR_ENV }}"
+          #   "SECRET_ENV=${{ secrets.SECRET_ENV }}"
