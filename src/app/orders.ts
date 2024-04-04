@@ -24,7 +24,7 @@ export async function getOrders(req: Request, res: Response): Promise<unknown> {
   if (error === 'WAIT_TEN_SECONDS') {
     await sleep(10_000)
   } else if (error === '500') {
-    res.status(532).json({ error: 'Better luck next time!' })
+    res.status(532).json({ error: 'Better luck next time!!' })
   }
 
   const sort = req.query?.sort?.toString()
