@@ -18,8 +18,8 @@ You need to install the following dependencies.
 > If you have installed `nvm` in your PC, only you need to run the following command:
 
 ```sh
-nvm install
 nvm use
+npm install
 ```
 
 To set the default version, you can run the following command:
